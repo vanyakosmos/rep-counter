@@ -1,5 +1,21 @@
 [[package]]
 category = "main"
+description = "Arguments parsing without boilerplate."
+name = "argser"
+optional = false
+python-versions = ">=3.6,<4.0"
+version = "0.0.14"
+
+[package.dependencies]
+termcolor = ">=1.1,<2.0"
+
+[package.extras]
+all = ["tabulate (>=0.8.5,<0.9.0)", "argcomplete (>=1.10,<2.0)"]
+argcomplete = ["argcomplete (>=1.10,<2.0)"]
+tabulate = ["tabulate (>=0.8.5,<0.9.0)"]
+
+[[package]]
+category = "main"
 description = "Composable style cycles"
 name = "cycler"
 optional = false
@@ -183,11 +199,23 @@ optional = false
 python-versions = ">=2.6, !=3.0.*, !=3.1.*"
 version = "1.13.0"
 
+[[package]]
+category = "main"
+description = "ANSII Color formatting for output in terminal."
+name = "termcolor"
+optional = false
+python-versions = "*"
+version = "1.1.0"
+
 [metadata]
-content-hash = "dd5042fabfbfe46d879c370d8444ef56a74288b4f5ceeb0aa8b7526a17b29978"
+content-hash = "71eedfed4d645fe5c6b840ed30be222fe3660ca124ef4b01e15d8fa3d06a3e82"
 python-versions = "^3.6"
 
 [metadata.files]
+argser = [
+    {file = "argser-0.0.14-py3-none-any.whl", hash = "sha256:0422bdce58f55cb50852519e6a883c06beea110c0c503f50c75cde9638ad648a"},
+    {file = "argser-0.0.14.tar.gz", hash = "sha256:88e603161584ce2d7764328121aac5d354ca0061da9228040f6b853d9eb5fbeb"},
+]
 cycler = [
     {file = "cycler-0.10.0-py2.py3-none-any.whl", hash = "sha256:1d8a5ae1ff6c5cf9b93e8811e581232ad8920aeec647c37316ceac982b08cb2d"},
     {file = "cycler-0.10.0.tar.gz", hash = "sha256:cd7b2d1018258d7247a71425e9f26463dfb444d411c39569972f4ce586b0c9d8"},
@@ -415,4 +443,7 @@ scipy = [
 six = [
     {file = "six-1.13.0-py2.py3-none-any.whl", hash = "sha256:1f1b7d42e254082a9db6279deae68afb421ceba6158efa6131de7b3003ee93fd"},
     {file = "six-1.13.0.tar.gz", hash = "sha256:30f610279e8b2578cab6db20741130331735c781b56053c59c4076da27f06b66"},
+]
+termcolor = [
+    {file = "termcolor-1.1.0.tar.gz", hash = "sha256:1d6d69ce66211143803fbc56652b41d73b4a400a2891d7bf7a1cdf4c02de613b"},
 ]
