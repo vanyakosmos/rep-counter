@@ -60,12 +60,6 @@ def add_text(
     cv2.putText(img, text, org, font, size, color, thickness, cv2.LINE_AA)
 
 
-def rot_append(arr: list, el, size=5):
-    arr.append(el)
-    if len(arr) > size:
-        arr.pop(0)
-
-
 def noop(*args, **kwargs):
     pass
 
@@ -95,7 +89,15 @@ class MockedDevice:
 
 
 class RepCounter:
-    def __init__(self, win_name="app", delay=33, buf_size=2, device=0, shader="waves"):
+    def __init__(
+        self,
+        win_name="app",
+        delay=33,
+        buf_size=2,
+        device=0,
+        shader="waves",
+        threshold=0.9,
+    ):
         assert 0 < delay
         assert 1 < buf_size < 100
         self.win_name = win_name
@@ -103,16 +105,17 @@ class RepCounter:
         self.buf_size = buf_size
         self.device = device
         self.shader = shader
+        self.threshold = threshold
         self.mode = Mode.normal
         self.cap = None
         self.base = None
         self.buf = []
 
-    def init(self):
-        if self.device == -1:
+    def init(self, device):
+        if device == -1:
             self.cap = MockedDevice(self.shader)
         else:
-            self.cap = self.get_camera(device=int(self.device), scale=0.1)
+            self.cap = self.get_camera(device=int(device), scale=0.1)
         self.setup_window()
 
     def get_camera(self, device=0, scale=1.0):
@@ -137,14 +140,30 @@ class RepCounter:
         cv2.createTrackbar("mode", self.win_name, 0, 2, noop)
         cv2.createTrackbar("diff type", self.win_name, 0, 2, noop)
 
+    def colored_diff(self, diff: np.ndarray, score: float):
+        th = self.threshold
+        diff = diff.astype(np.float)
+        if score > th:
+            ns = (score - th) / (1 - th)  # how close to 1.0 score
+            diff[:, :, 1] = diff[:, :, 1] / max(0.7, 1 - ns)
+        else:
+            ns = (th - score) / th  # how close to 0.0 score
+            diff[:, :, 2] = diff[:, :, 2] / max(0.7, 1 - ns)
+        diff[diff > 255] = 255
+        diff = diff.astype(np.uint8)
+        return diff
+
     def ghost_mode(self, frame):
-        rot_append(self.buf, frame, size=self.buf_size)
+        self.buf.append(frame)
+        if len(self.buf) > self.buf_size:
+            self.buf.pop(0)
         if self.buf:
             f, _ = calc_diff(self.buf[0], self.buf[-1])
             return f
 
     def record_mode(self, frame):
         f, score = calc_diff(self.base, frame)
+        f = self.colored_diff(f, score)
         add_text(f, text=f"score: {score:.2f}", pos=(1, 0), anchor=(1, 1))
         add_text(f, text=f"start", size=4, thickness=2, pos=(0.5, 0.5), anchor="center")
         return f
@@ -185,7 +204,7 @@ class RepCounter:
 
     def run(self):
         if self.cap is None:
-            self.init()
+            self.init(self.device)
         try:
             self._run()
         except KeyboardInterrupt:

@@ -1,14 +1,18 @@
 import cv2
 
-from main import RepCounter
+from counter import RepCounter
 
 
-def main():
+def test_record_mode_diff():
     counter = RepCounter()
     counter.base = cv2.imread("assets/base.png")
     frame = cv2.imread("assets/next.png")
     img = counter.record_mode(frame)
-    cv2.imwrite("assets/result.png", img)
+    cv2.imwrite("assets/diff.png", img)
+
+
+def main():
+    test_record_mode_diff()
 
 
 if __name__ == "__main__":

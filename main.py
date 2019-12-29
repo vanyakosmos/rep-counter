@@ -9,6 +9,7 @@ class Args:
     buf_size = 2, "how many frames to save for ghost mode"
     device = -1, "-1 is mock video, >= 0 - real video devices on machine"
     shader = "waves", "placeholder animation for mocked video device"
+    threshold = 0.9, "similarity threshold"
 
 
 def main():
