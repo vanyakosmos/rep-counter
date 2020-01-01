@@ -5,8 +5,7 @@ from typing import Tuple, Union
 import cv2
 import numpy as np
 
-from skimage.metrics import structural_similarity
-
+import differ
 import shaders
 
 
@@ -17,15 +16,6 @@ def get_cap_size(cap):
 def set_cap_size(cap, width, height):
     cap.set(3, int(width))
     cap.set(4, int(height))
-
-
-def calc_diff(base, frame):
-    base = cv2.cvtColor(base, cv2.COLOR_BGR2GRAY)
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    score, diff = structural_similarity(base, frame, full=True)
-    diff = (diff + 1) / 2
-    diff = (diff * 255).astype(np.uint8)
-    return cv2.cvtColor(diff, cv2.COLOR_GRAY2BGR), score
 
 
 def calculate_origin(im_size, text_size, pos, anchor):
@@ -68,6 +58,7 @@ class Mode(enum.Enum):
     normal = enum.auto()
     ghost = enum.auto()
     record = enum.auto()
+    delay = enum.auto()
 
 
 class MockedDevice:
@@ -100,16 +91,23 @@ class RepCounter:
     ):
         assert 0 < delay
         assert 1 < buf_size < 100
+
         self.win_name = win_name
         self.delay = delay
         self.buf_size = buf_size
         self.device = device
         self.shader = shader
         self.threshold = threshold
-        self.mode = Mode.normal
+
+        self.mode = Mode.ghost
         self.cap = None
         self.base = None
         self.buf = []
+        self.time = None
+        self.count = 0
+        self.moved = False
+        self.diff_registry = differ.DiffRegistry()
+        self.differ = self.diff_registry[1]
 
     def init(self, device):
         if device == -1:
@@ -125,6 +123,7 @@ class RepCounter:
         return cap
 
     def place_window_on_top(self):
+        """SoF said that it works on mac, but it doesn't..."""
         cv2.namedWindow(self.win_name, cv2.WINDOW_NORMAL)
         cv2.imshow(self.win_name, np.zeros((100, 100), np.uint8))
         cv2.setWindowProperty(
@@ -135,48 +134,79 @@ class RepCounter:
         cv2.destroyWindow(self.win_name)
 
     def setup_window(self):
-        self.place_window_on_top()
         cv2.namedWindow(self.win_name)
-        cv2.createTrackbar("mode", self.win_name, 0, 2, noop)
-        cv2.createTrackbar("diff type", self.win_name, 0, 2, noop)
-
-    def colored_diff(self, diff: np.ndarray, score: float):
-        th = self.threshold
-        diff = diff.astype(np.float)
-        if score > th:
-            ns = (score - th) / (1 - th)  # how close to 1.0 score
-            diff[:, :, 1] = diff[:, :, 1] / max(0.7, 1 - ns)
-        else:
-            ns = (th - score) / th  # how close to 0.0 score
-            diff[:, :, 2] = diff[:, :, 2] / max(0.7, 1 - ns)
-        diff[diff > 255] = 255
-        diff = diff.astype(np.uint8)
-        return diff
+        cv2.createTrackbar(
+            "diff type", self.win_name, 0, len(self.diff_registry) - 1, noop
+        )
+        cv2.setTrackbarPos(
+            "diff type", self.win_name, self.diff_registry.index(self.differ)
+        )
 
     def ghost_mode(self, frame):
         self.buf.append(frame)
         if len(self.buf) > self.buf_size:
             self.buf.pop(0)
         if self.buf:
-            f, _ = calc_diff(self.buf[0], self.buf[-1])
+            f, score = self.differ.compare(self.buf[0], self.buf[-1])
+            f = differ.colorize_diff(f, score, self.threshold)
             return f
 
     def record_mode(self, frame):
-        f, score = calc_diff(self.base, frame)
-        f = self.colored_diff(f, score)
+        f, score = self.differ.compare(self.base, frame)
+        f = differ.colorize_diff(f, score, self.threshold)
+
+        if score > self.threshold and self.moved:
+            self.moved = False
+            self.count += 1
+
+        if score <= self.threshold:
+            self.moved = True
+
         add_text(f, text=f"score: {score:.2f}", pos=(1, 0), anchor=(1, 1))
-        add_text(f, text=f"start", size=4, thickness=2, pos=(0.5, 0.5), anchor="center")
+        add_text(
+            f,
+            text=f"{self.count}",
+            size=6,
+            thickness=20,
+            pos=(0.5, 0.5),
+            anchor="center",
+        )
+        return f
+
+    def init_record_mode(self, frame):
+        self.mode = Mode.record
+        self.base = frame.copy()
+        self.count = 0
+        self.moved = False
+
+    def delay_mode(self, frame):
+        target = 5
+        e = time() - self.time
+        f = frame.copy()
+        add_text(
+            f,
+            f"starting in {target - e:.2f}s",
+            size=2,
+            pos=(0.5, 0.5),
+            anchor="center",
+        )
+        if e >= target:
+            self.init_record_mode(frame)
         return f
 
     def wait_key(self, frame):
+        diff_type = cv2.getTrackbarPos("diff type", self.win_name)
+        self.differ = self.diff_registry[diff_type]
         key = cv2.waitKey(self.delay)
         if key == ord("n"):
             self.mode = Mode.normal
         elif key == ord("r"):
-            self.mode = Mode.record
-            self.base = frame.copy()
+            self.init_record_mode(frame)
         elif key == ord("g"):
             self.mode = Mode.ghost
+        elif key == ord("d"):
+            self.mode = Mode.delay
+            self.time = time()
         elif key in (ord("q"), 27):  # esc==27
             return False
         return True
@@ -188,19 +218,21 @@ class RepCounter:
                 continue
             frame = cv2.flip(frame, 1)  # vertical flip / mirror
 
+            if not self.wait_key(frame):
+                break
+
             if self.mode == Mode.ghost:
                 f = self.ghost_mode(frame)
                 if f is None:
                     continue
             elif self.mode == Mode.record:
                 f = self.record_mode(frame)
+            elif self.mode == Mode.delay:
+                f = self.delay_mode(frame)
             else:
                 f = frame
 
             cv2.imshow(self.win_name, f)
-
-            if not self.wait_key(frame):
-                break
 
     def run(self):
         if self.cap is None:
