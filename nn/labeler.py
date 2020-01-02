@@ -1,10 +1,8 @@
 import json
 import tkinter as tk
 from functools import partial
-from pathlib import Path
 
-
-IMG_ROOT = Path("data/train")
+from nn.consts import IMG_ROOT, LABELS_FILE
 
 
 def center(win):
@@ -38,9 +36,9 @@ class App(tk.Tk):
         # keyboard bindings
         self.bind("<Left>", partial(self.show_next_image, stride=-1))
         self.bind("<Right>", partial(self.show_next_image, stride=1))
-        self.bind("j", partial(self.add_image_label, mark="j"))
-        self.bind("k", partial(self.add_image_label, mark="k"))
-        self.bind("l", partial(self.add_image_label, mark="l"))
+        self.bind("j", partial(self.add_image_label, mark=0))
+        self.bind("k", partial(self.add_image_label, mark=1))
+        self.bind("l", partial(self.add_image_label, mark=2))
         # data setup
         self.render_image()
         self.render_labels()
@@ -65,13 +63,11 @@ class App(tk.Tk):
         self.render()
 
     def save_checkpoint(self, event=None):
-        fp = IMG_ROOT.joinpath("labels.json")
-        fp.write_text(json.dumps(self.labels))
+        LABELS_FILE.write_text(json.dumps(self.labels))
 
     def load_checkpoint(self, event=None):
-        fp = IMG_ROOT.joinpath("labels.json")
-        if fp.exists():
-            self.labels = json.loads(fp.read_text())
+        if LABELS_FILE.exists():
+            self.labels = json.loads(LABELS_FILE.read_text())
             self.index = len(self.labels)
             self.render()
 

@@ -2,7 +2,12 @@ from typing import Tuple
 
 import cv2
 import numpy as np
+from keras import Model
+from keras.engine.saving import load_model
 from skimage.metrics import structural_similarity
+
+from nn.model import IM_HEIGHT, IM_WIDTH
+
 
 Arr = np.ndarray
 
@@ -31,22 +36,40 @@ class Differ:
 
 class SSIMDiffer(Differ):
     def diff(self, a: Arr, b: Arr) -> Tuple[Arr, float]:
-        score, diff = structural_similarity(
-            a, b, full=True, multichannel=self.multichannel
-        )
+        score, diff = structural_similarity(a, b, full=True, multichannel=self.multichannel)
         diff = (diff + 1) / 2
         return diff, score
 
 
 class RMSDiffer(Differ):
+    def __init__(self, multichannel=False, dilate=3, threshold=25):
+        super().__init__(multichannel=multichannel)
+        self.dilate = dilate
+        self.threshold = threshold
+
     def diff(self, a: Arr, b: Arr):
         d = cv2.absdiff(a, b)
-        d = cv2.threshold(d, 25, 255, cv2.THRESH_BINARY)[1]
-        d = cv2.dilate(d, None, iterations=3)
+        if self.threshold > 0:
+            d = cv2.threshold(d, self.threshold, 255, cv2.THRESH_BINARY)[1]
+        if self.dilate > 0:
+            d = cv2.dilate(d, None, iterations=self.dilate)
         d = d / 255
         d = 1 - d
         score = np.mean(d > 0.1)
         return d, score
+
+
+class NNDiffer(RMSDiffer):
+    def __init__(self, multichannel=False):
+        super().__init__(multichannel=multichannel, dilate=-1, threshold=-1)
+        self.model: Model = load_model("data/models/test.hdf5", compile=False)
+
+    def compare(self, a: Arr, b: Arr) -> Tuple[Arr, float]:
+        diff, _ = super().compare(a, b)
+        img = cv2.resize(diff, (IM_WIDTH, IM_HEIGHT), interpolation=cv2.INTER_NEAREST)
+        img = np.reshape(img, (1,) + img.shape)
+        res = self.model.predict(img)
+        return diff, res[0][0]
 
 
 def colorize_diff(diff: np.ndarray, score: float, th: float):
@@ -72,7 +95,8 @@ class DiffRegistry:
     def make_mapper(self):
         mapper = {
             "ssim": SSIMDiffer(),
-            "rms": RMSDiffer(),
+            "rms": RMSDiffer(dilate=0),
+            "nn": NNDiffer(),
         }
         return mapper
 
