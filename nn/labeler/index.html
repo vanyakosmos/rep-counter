@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>labeler</title>
+  <link rel="stylesheet"
+        href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+        integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh"
+        crossorigin="anonymous">
+  <style>
+    [v-cloak] {
+      display: none;
+    }
+
+    .parent {
+      max-width: 800px;
+      margin: 20px auto;
+    }
+
+    .logs {
+      max-height: 500px;
+      overflow-y: scroll;
+    }
+
+    .row-no-padding > [class*="col-"] {
+      padding-right: 5px;
+      padding-left: 5px;
+    }
+
+    .highlight {
+      background: rgba(255, 99, 71, 0.5);
+    }
+
+    .log-item {
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 8px;
+      font-family: monospace;
+    }
+    .log-item:not(.highlight):hover {
+      background: rgba(255, 99, 71, 0.1);
+    }
+  </style>
+</head>
+
+<body>
+<div id="app" class="parent container-fluid" v-cloak>
+  <div class="row">
+    <div class="col-sm-12 col-md-6 mb-3">
+    <div class="image-block">
+      <img :src="'/raw/' + image" alt="img">
+    </div>
+    <div class="control-block">
+      <div class="row row-no-padding">
+        <div class="col-6">
+          <button class="btn btn-block btn-secondary" :disabled="index === 0"
+                  @click="move(-1)">
+            ←
+          </button>
+        </div>
+        <div class="col-6">
+          <button class="btn btn-block btn-secondary" :disabled="index === maxIndex"
+                  @click="move(1)">
+            →
+          </button>
+        </div>
+      </div>
+      <div class="row row-no-padding mt-2">
+        <div class="col-4">
+          <button class="btn btn-block btn-success" @click="addLabel(0)">
+            rel (j)
+          </button>
+        </div>
+        <div class="col-4">
+          <button class="btn btn-block btn-warning" @click="addLabel(1)">
+            ten (k)
+          </button>
+        </div>
+        <div class="col-4">
+          <button class="btn btn-block btn-danger" @click="addLabel(2)">
+            unf (l)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="logs sm-12 col-md-6">
+    <div v-for="item in labels"
+         :class="{highlight: index === item.index}" class="log-item"
+         @click="moveTo(item.index)">
+      {{item.index}}. {{item.image}} -
+      <span v-if="item.label === 0" class="badge badge-success">relaxed</span>
+      <span v-if="item.label === 1" class="badge badge-warning">tense</span>
+      <span v-if="item.label === 2" class="badge badge-danger">unfocused</span>
+    </div>
+    <div :class="{highlight: index === maxIndex}" class="log-item"
+         @click="moveTo(maxIndex)">
+      {{maxIndex}}. {{nextImage}} - ?
+    </div>
+  </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"
+        integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n"
+        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
+        integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo"
+        crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"
+        integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6"
+        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script>
+  (
+    async function () {
+      const app = new Vue({
+        el: '#app',
+        data: {
+          labels: [],
+          image: '',
+          nextImage: '',
+          index: 0,
+          maxIndex: 0,
+        },
+        methods: {
+          updateState: function (data) {
+            Object.assign(this, data);
+            console.log(data);
+          },
+          addLabel: async function (label) {
+            const res = await axios.post(`/label/${label}`);
+            this.updateState(res.data);
+          },
+          move: async function (stride) {
+            const res = await axios.post(`/move`, {stride});
+            this.updateState(res.data);
+          },
+          moveTo: async function (index) {
+            const res = await axios.post(`/move`, {index});
+            this.updateState(res.data);
+          },
+        }
+      });
+
+      let res = await axios.get(`/state`);
+      app.updateState(res.data);
+
+      document.addEventListener('keydown', async (e) => {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+          await app.move(-1);
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+          await app.move(1);
+        } else if (e.key === 'j') {
+          await app.addLabel(0);
+        } else if (e.key === 'k') {
+          await app.addLabel(1);
+        } else if (e.key === 'l') {
+          await app.addLabel(2);
+        }
+      });
+    }
+  )()
+
+</script>
+</body>
+
+</html>

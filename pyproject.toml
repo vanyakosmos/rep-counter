@@ -12,12 +12,13 @@ scikit-image = "^0.16.2"
 argser = "^0.0.14"
 keras = "^2.3.1"
 tensorflow = ">=2.1rc0"
+flask = "^1.1.1"
 
 [tool.poetry.dev-dependencies]
 
+[tool.black]
+line-length = 120
 [build-system]
 requires = ["poetry>=0.12"]
 build-backend = "poetry.masonry.api"
 
-[tool.black]
-line-length = 120
